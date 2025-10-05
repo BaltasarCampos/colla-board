@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const {Server} = require('Socket.io');
+const EventHandlers = require('./events/eventHandlers.js');
 require('dotenv').config();
 
 const app = express();
@@ -23,6 +24,9 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+//Initialize event Hhndlers
+const eventHandlers = new EventHandlers(io);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
@@ -36,16 +40,7 @@ app.get('/health', (req, res) => {
 io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
 
-
-    // Handle disconnection
-    socket.on('disconnect', (reason) => {
-        console.log(`Client disconnected: ${socket.id}, Reason: ${reason}`);
-    });
-
-    // Handle connection errors
-    socket.on('error', (error) => {
-        console.error(`Socket error for ${socket.id}:`, error);
-    });
+    eventHandlers.registerHandlers(socket);
 });
 
 // Error handling middleware

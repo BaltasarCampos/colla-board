@@ -50,7 +50,7 @@ class EventHandlers {
         console.log(`Room ${roomId} now has ${room.users.size} users`);
     }
 
-    handleLeaveRoom(socket, { roomId }) {
+    handleLeaveRoom(socket) {
         this.leaveRoom(socket);
     }
 
