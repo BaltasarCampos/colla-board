@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
-const {Server} = require('Socket.io');
+const {Server} = require('socket.io');
 const EventHandlers = require('./events/eventHandlers.js');
 require('dotenv').config();
 
