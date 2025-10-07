@@ -1,7 +1,10 @@
+const logger = require('../utils/logger');
+
 class EventHandlers {
     constructor(io) {
         this.io = io;
         this.rooms = new Map();
+        logger.info('EventHandlers initialized');
     }
 
     registerHandlers(socket) {
@@ -9,10 +12,12 @@ class EventHandlers {
         socket.on('leave-room', (data)=> this.handleLeaveRoom(socket, data));
         socket.on('drawing-event', (data)=> this.handleDrawingEvent(socket, data));
         socket.on('disconect', ()=> this.handleDisconect(socket));
+
+        logger.debug(`Handlers registered for socket ${socket.id}`);
     }
 
     handleJoinRoom(socket, { roomId, userId, userName }) {
-        console.log(`User ${userName} (${userId}) joining room ${roomId}`);
+        logger.info(`User ${username} (${userId}) joining room ${roomId}`);
 
         socket.join(roomId);
 
@@ -27,6 +32,7 @@ class EventHandlers {
                 strokes: [],
                 createdAt: new Date()
             });
+            logger.info(`Room ${roomId} created`);
         }
 
         const room = this.rooms.get(roomId);
@@ -47,10 +53,11 @@ class EventHandlers {
             strokes: room.strokes
         });
 
-        console.log(`Room ${roomId} now has ${room.users.size} users`);
+        logger.info(`Room ${roomId} now has ${room.users.size} users`);
     }
 
     handleLeaveRoom(socket) {
+        logger.info(`User ${socket.username} leaving room ${roomId}`);
         this.leaveRoom(socket);
     }
 
@@ -59,12 +66,12 @@ class EventHandlers {
         const room = this.rooms.get(roomId);
 
         if (!roomId) {
-            console.error('Drawong event from socket not in a room');
+            logger.error(`Drawing event from socket ${socket.id} not in a room`);
             return;
         }
 
         if (!event || !event.type) {
-            console.error('Invalid drawing event structure');
+            logger.error(`Invalid drawing event structure from ${socket.id}`);
             return;
         }
 
@@ -73,13 +80,14 @@ class EventHandlers {
 
         if (room) {
             room.strokes.push(event);
+            logger.debug(`Drawing event ${event.type} from ${socket.username} in room ${roomId}`);
         }
 
         socket.to(roomId).emit('drawing-event', event);
     }
 
     handleDisconnect(socket) {
-        console.log(`Socket ${socket.id} disconnecting`);
+        logger.info(`Socket ${socket.id} (${socket.username || 'unknown'}) disconnecting`);
         this.leaveRoom(socket);
     }
 
@@ -102,12 +110,28 @@ class EventHandlers {
 
             // Clean up empty rooms
             if (room.users.size === 0) {
-                console.log(`Room ${roomId} is empty, cleaning up`);
+                logger.info(`Room ${roomId} is empty, cleaning up`);
                 this.rooms.delete(roomId);
+            } else {
+                logger.info(`Room ${roomId} now has ${room.users.size} users`);
             }
         }
     
         socket.leave(roomId);
+    }
+
+    getRoomStats(roomId) {
+        const room = this.rooms.get(roomId);
+        if (!room) {
+            logger.warn(`Room stats requested for non-existent room ${roomId}`);
+            return null;
+        }
+    
+        return {
+            userCount: room.users.size,
+            strokeCount: room.strokes.length,
+            createdAt: room.createdAt
+        };
     }
 };
 
