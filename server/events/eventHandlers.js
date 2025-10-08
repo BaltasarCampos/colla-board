@@ -17,7 +17,7 @@ class EventHandlers {
     }
 
     handleJoinRoom(socket, { roomId, userId, userName }) {
-        logger.info(`User ${username} (${userId}) joining room ${roomId}`);
+        logger.info(`User ${userName} (${userId}) joining room ${roomId}`);
 
         socket.join(roomId);
 
@@ -48,7 +48,7 @@ class EventHandlers {
         socket.emit('room-state', {
             users: Array.from(room.users.entries()).map(([id, data]) => ({
                 userId: id,
-                username: data.username
+                userName: data.userName
             })),
             strokes: room.strokes
         });
@@ -57,7 +57,7 @@ class EventHandlers {
     }
 
     handleLeaveRoom(socket) {
-        logger.info(`User ${socket.username} leaving room ${roomId}`);
+        logger.info(`User ${socket.userName} leaving room ${roomId}`);
         this.leaveRoom(socket);
     }
 
@@ -80,19 +80,19 @@ class EventHandlers {
 
         if (room) {
             room.strokes.push(event);
-            logger.debug(`Drawing event ${event.type} from ${socket.username} in room ${roomId}`);
+            logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
         }
 
         socket.to(roomId).emit('drawing-event', event);
     }
 
     handleDisconnect(socket) {
-        logger.info(`Socket ${socket.id} (${socket.username || 'unknown'}) disconnecting`);
+        logger.info(`Socket ${socket.id} (${socket.userName || 'unknown'}) disconnecting`);
         this.leaveRoom(socket);
     }
 
     leaveRoom(socket) {
-        const { roomId, userId, username } = socket;
+        const { roomId, userId, userName } = socket;
         
         if (!roomId) return;
     
@@ -104,7 +104,7 @@ class EventHandlers {
             // Notify others
             socket.to(roomId).emit('user-left', {
                 userId,
-                username,
+                userName,
                 timestamp: Date.now()
             });
 
