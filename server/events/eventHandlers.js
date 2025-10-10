@@ -79,8 +79,13 @@ class EventHandlers {
         event.timestamp = Date.now();
 
         if (room) {
-            room.strokes.push(event);
-            logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
+            if (event.type === 'canvas-clear') {
+                room.strokes = [];
+                logger.info(`Canvas cleared by ${socket.userName} in room ${room.id}`);
+            } else {
+                room.strokes.push(event);
+                logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
+            }
         }
 
         socket.to(roomId).emit('drawing-event', event);
