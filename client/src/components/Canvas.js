@@ -200,14 +200,7 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
 
     // Handle room state (for late joiners)
     const handleRoomState = (data) => {
-console.log('=== ROOM STATE DEBUG ===');
-console.log('Strokes received:', data.strokes.length);
-console.log('Context available:', !!context);
-console.log('Canvas ref:', canvasRef.current);
-console.log('Canvas dimensions:', canvasRef.current?.width, 'x', canvasRef.current?.height);
-console.log('First few strokes:', data.strokes.slice(0, 3));
-console.log('========================');
-      console.log(`Room state update from ${roomId} received:`, data.strokes.length, 'strokes');
+      console.log(`Room state update received:`, data.strokes.length, 'strokes');
       replayStrokes(data.strokes);
     };
 
