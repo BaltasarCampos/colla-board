@@ -141,6 +141,32 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
     context.closePath();
   };
 
+  // Clear canvas function
+  const clearCanvas = useCallback(() => {
+    if (!context) return;
+
+    const canvas = canvasRef.current;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    console.log('Canvas cleared locally');
+  }, [context]);
+
+  // Handle clear canvas button click
+  const handleClearCanvas = () => {
+    if (!context) return;
+
+    // Clear locally
+    clearCanvas();
+
+    // Emit clear event to other users
+    const event = {
+      type: 'canvas-clear',
+      data: {}
+    };
+
+    console.log('Emitting canvas-clear event');
+    socketService.sendDrawingEvent(event);
+  };
+
   // Helper function to replay strokes on canvas
   // Memoize replayStrokes so it doesn't change on every render
   const replayStrokes = useCallback( (strokes) => {
@@ -198,7 +224,7 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
 
     console.log('Context ready, registering socket listeners');
 
-    // Handle room state (for late joiners)
+    // Handle subsequent room state updates (if any)
     const handleRoomState = (data) => {
       console.log(`Room state update received:`, data.strokes.length, 'strokes');
       replayStrokes(data.strokes);
@@ -213,6 +239,14 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
 
       const { type, data } = event;
 
+      // Handle canvas-clear event
+      if (type === 'canvas-clear') {
+        console.log('Received canvas-clear from another user');
+        clearCanvas();
+        return;
+      }
+
+      // Handle regular drawing events
       if (type === 'stroke-start') {
         context.beginPath();
         context.moveTo(data.x, data.y);
@@ -233,7 +267,7 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
       socketService.off('room-state', handleRoomState);
       socketService.off('drawing-event', handleRemoteDrawing);
     };
-  }, [context, socketService, userId, replayStrokes]); // Only runs when context changes from null
+  }, [context, socketService, userId, replayStrokes, clearCanvas]); // Only runs when context changes from null
 
   return (
     <div className="canvas-wrapper">
@@ -280,12 +314,9 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
 
         <div className="tool-group">
           <button
-            onClick={() => {
-              const canvas = canvasRef.current;
-              context.clearRect(0, 0, canvas.width, canvas.height);
-              // TODO: Emit clear event to other users
-            }}
+            onClick={handleClearCanvas}
             className="clear-button"
+            title="Clear canvas for everyone"
           >
             🗑️ Clear Canvas
           </button>
