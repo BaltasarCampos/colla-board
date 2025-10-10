@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import socketService from './services/socket';
+import Canvas from './components/Canvas';
 import './App.css';
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [roomId, setRoomId] = useState('');
-  const [username, setUsername] = useState('');
+  const [userName, setUserName] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   const [userId] = useState(() => uuidv4()); // Generate once on mount
+  const [users, setUsers] = useState([]);
+  const [roomState, setRoomState] = useState(null);
 
   // Connect to socket when component mounts
   useEffect(() => {
@@ -26,19 +29,25 @@ function App() {
     // Listen for room state
     socketService.on('room-state', (data) => {
       console.log('Room state received:', data);
-      // We'll use this later
+      setUsers(data.users);
+      setRoomState(data);
     });
 
     // Listen for other users joining
     socketService.on('user-joined', (data) => {
       console.log('User joined:', data);
-      // We'll use this later
+      setUsers((prevUsers) => [
+        ...prevUsers,
+        { userId: data.userId, userName: data.userName }
+      ]);
     });
 
     // Listen for other users leaving
     socketService.on('user-left', (data) => {
       console.log('User left:', data);
-      // We'll use this later
+      setUsers((prevUsers) =>
+        prevUsers.filter((user) => user.userId !== data.userId)
+      );
     });
 
     // Cleanup on unmount
@@ -52,7 +61,7 @@ function App() {
   const handleJoinRoom = (e) => {
     e.preventDefault(); // Prevent form submission from reloading page
 
-    if (!username.trim()) {
+    if (!userName.trim()) {
       alert('Please enter your name');
       return;
     }
@@ -68,7 +77,7 @@ function App() {
     console.log(`Joining room: ${finalRoomId}`);
     
     // Join the room via socket
-    socketService.joinRoom(finalRoomId, userId, username);
+    socketService.joinRoom(finalRoomId, userId, userName);
     
     // Update UI
     setRoomId(finalRoomId);
@@ -90,8 +99,8 @@ function App() {
           <input
             type="text"
             placeholder="Your Name"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
             autoFocus
           />
           <input
@@ -102,7 +111,7 @@ function App() {
           />
           <button 
             type="submit"
-            disabled={!isConnected || !username.trim()}
+            disabled={!isConnected || !userName.trim()}
           >
             {isConnected ? 'Join Room' : 'Connecting...'}
           </button>
@@ -114,9 +123,26 @@ function App() {
         <div className="canvas-container">
           <div className="room-info">
             <p><strong>Room:</strong> {roomId}</p>
-            <p><strong>User:</strong> {username}</p>
+            <p><strong>User:</strong> {userName}</p>
           </div>
-          <p>Canvas will go here!</p>
+          <div className="users-list">
+            <strong>Users ({users.length}):</strong>
+            <ul>
+              {users.map((user) => (
+                <li key={user.userId}>
+                  {user.userName}
+                  {user.userId === userId && ' (you)'}
+                </li>
+              ))}
+              </ul>
+          </div>
+          <Canvas
+            socketService={socketService}
+            roomId={roomId}
+            userId={userId}
+            userName={userName}
+            initialRoomState={roomState}
+          />
         </div>
       )}
     </div>

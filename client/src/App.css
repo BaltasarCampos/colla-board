@@ -93,9 +93,10 @@ body {
 .canvas-container {
   flex: 1;
   display: flex;
-  justify-content: center;
-  align-items: center;
   padding: 20px;
+  gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .hint {
@@ -105,20 +106,48 @@ body {
 }
 
 .room-info {
-  position: absolute;
-  top: 80px;
-  left: 20px;
   background-color: white;
-  padding: 12px 20px;
+  padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  font-size: 14px;
+  height: fit-content;
+  min-width: 200px;
+}
+
+.room-info > div {
+  margin-bottom: 20px;
+}
+
+.room-info > div:last-child {
+  margin-bottom: 0;
 }
 
 .room-info p {
-  margin: 4px 0;
+  margin: 8px 0;
+  font-size: 14px;
 }
 
 .room-info strong {
   color: #282c34;
+}
+
+.users-list {
+  margin-top: 20px;
+}
+
+.users-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+}
+
+.users-list li {
+  padding: 6px 0;
+  font-size: 14px;
+  color: #555;
+}
+
+.users-list li:before {
+  content: "👤 ";
+  margin-right: 6px;
 }
