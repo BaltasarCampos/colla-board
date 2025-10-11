@@ -4,10 +4,14 @@ import './Canvas.css';
 function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const lastPointRef = useRef(null); // Track last drawn point
   const [context, setContext] = useState(null);
   const [currentTool, setCurrentTool] = useState('pen');
   const [currentColor, setCurrentColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(3);
+
+  // Performance settings
+  const MIN_DISTANCE = 2; // Minimum distance between points to record
 
   // Initialize canvas
   useEffect(() => {
@@ -64,12 +68,18 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
     };
   };
 
+  // Calculate distance between two points
+  const getDistance = (x1, y1, x2, y2) => {
+    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+  };
+
   // Start drawing
   const startDrawing = (e) => {
     if (!context) return;
 
     const pos = getMousePos(e);
     setIsDrawing(true);
+    lastPointRef.current = pos; // Store starting point
 
     // Emit stroke-start event
     const event = {
@@ -104,8 +114,20 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
     if (!isDrawing || !context) return;
 
     const pos = getMousePos(e);
+    const lastPoint = lastPointRef.current;
 
-    // Emit stroke-continue event
+    // Only send event if point has moved significantly
+    if (lastPoint) {
+      const distance = getDistance(lastPoint.x, lastPoint.y, pos.x, pos.y);
+      
+      if (distance < MIN_DISTANCE) {
+        // Point too close to last one, skip sending event but still draw locally
+        drawLine(context, pos.x, pos.y, currentColor, brushSize, currentTool);
+        return;
+      }
+    }
+
+    // Point is significant, send event
     const event = {
       type: 'stroke-continue',
       data: {
@@ -118,6 +140,7 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
     };
 
     socketService.sendDrawingEvent(event);
+    lastPointRef.current = pos; // Update last point
 
     // Draw locally
     drawLine(context, pos.x, pos.y, currentColor, brushSize, currentTool);
@@ -128,6 +151,7 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
     if (!isDrawing || !context) return;
 
     setIsDrawing(false);
+    lastPointRef.current = null; // Reset last point
 
     // Emit stroke-end event
     const event = {
@@ -169,6 +193,7 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
 
   // Helper function to replay strokes on canvas
   // Memoize replayStrokes so it doesn't change on every render
+  // Optimized replay with requestAnimationFrame for smooth rendering
   const replayStrokes = useCallback( (strokes) => {
     if (!context || !strokes || strokes.length === 0) {
       console.log('Cannot replay: context or strokes missing', {
@@ -183,28 +208,47 @@ function Canvas({ socketService, roomId, userId, userName, initialRoomState }) {
     const canvas = canvasRef.current;
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-    strokes.forEach((event) => {
-      const { type, data: strokeData } = event;
+    // Batch size for processing events per frame
+    const BATCH_SIZE = 100;
+    let currentIndex = 0;
 
-      if (type === 'stroke-start') {
-        context.beginPath();
-        context.moveTo(strokeData.x, strokeData.y);
-      } else if (type === 'stroke-continue') {
-        drawLine(
-          context,
-          strokeData.x,
-          strokeData.y,
-          strokeData.color,
-          strokeData.size,
-          strokeData.tool
-        );
-      } else if (type === 'stroke-end') {
-        context.closePath();
+    const processNextBatch = () => {
+      const endIndex = Math.min(currentIndex + BATCH_SIZE, strokes.length);
+      
+      for (let i = currentIndex; i < endIndex; i++) {
+        const event = strokes[i];
+        const { type, data: strokeData } = event;
+
+        if (type === 'stroke-start') {
+          context.beginPath();
+          context.moveTo(strokeData.x, strokeData.y);
+        } else if (type === 'stroke-continue') {
+          drawLine(
+            context,
+            strokeData.x,
+            strokeData.y,
+            strokeData.color,
+            strokeData.size,
+            strokeData.tool
+          );
+        } else if (type === 'stroke-end') {
+          context.closePath();
+        }
       }
-    });
 
-    console.log('Replay complete');
-  },[context]); // Only recreate if context changes
+      currentIndex = endIndex;
+
+      if (currentIndex < strokes.length) {
+        // More strokes to process, schedule next batch
+        requestAnimationFrame(processNextBatch);
+      } else {
+        console.log('Replay complete');
+      }
+    };
+
+    // Start processing
+    requestAnimationFrame(processNextBatch);
+  }, [context]);
 
   // Replay initial room state when context becomes ready
   useEffect(() => {
