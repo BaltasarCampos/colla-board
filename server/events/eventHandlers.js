@@ -81,7 +81,7 @@ class EventHandlers {
         if (room) {
             if (event.type === 'canvas-clear') {
                 room.strokes = [];
-                logger.info(`Canvas cleared by ${socket.userName} in room ${room.id}`);
+                logger.info(`Canvas cleared by ${socket.userName} in room ${roomId}`);
             } else {
                 room.strokes.push(event);
                 logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
