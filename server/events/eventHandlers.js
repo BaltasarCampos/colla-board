@@ -4,6 +4,11 @@ class EventHandlers {
     constructor(io) {
         this.io = io;
         this.rooms = new Map();
+
+        // Performance settings
+        this.MAX_STROKES_PER_ROOM = 10000; // Maximum strokes before cleanup
+        this.STROKE_CLEANUP_THRESHOLD = 0.8; // Clean up when 80% full
+
         logger.info('EventHandlers initialized');
     }
 
@@ -84,6 +89,19 @@ class EventHandlers {
                 logger.info(`Canvas cleared by ${socket.userName} in room ${roomId}`);
             } else {
                 room.strokes.push(event);
+
+                // Check if we need to clean up old strokes
+                if (room.strokes.length > this.MAX_STROKES_PER_ROOM * this.STROKE_CLEANUP_THRESHOLD) {
+                    logger.warn(`Room ${roomId} approaching stroke limit (${room.strokes.length}/${this.MAX_STROKES_PER_ROOM})`);
+          
+                    // If we hit the max, keep only the most recent 50%
+                    if (room.strokes.length >= this.MAX_STROKES_PER_ROOM) {
+                        const keepCount = Math.floor(this.MAX_STROKES_PER_ROOM * 0.5);
+                        room.strokes = room.strokes.slice(-keepCount);
+                        logger.info(`Room ${roomId} strokes trimmed to ${room.strokes.length}`);
+                    }
+                }
+
                 logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
             }
         }
