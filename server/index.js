@@ -5,6 +5,7 @@ const {Server} = require('socket.io');
 const EventHandlers = require('./events/eventHandlers.js');
 const logger = require('./utils/logger.js');
 const requestLogger = require('./middelware/requestLogger.js');
+const { CONNECTION } = require('./config/constants.js');
 require('dotenv').config();
 
 const app = express();
@@ -16,8 +17,8 @@ const io = new Server(server, {
         methods: ['GET', 'POST'],
         credentials: true
     },
-    pingTimeout: 60000,
-    pingInterval: 25000
+    pingTimeout: CONNECTION.PING_TIMEOUT,
+    pingInterval: CONNECTION.PING_INTERVAL
 });
 
 const PORT = process.env.PORT || 5000;

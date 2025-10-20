@@ -1,23 +1,21 @@
 const logger = require('../utils/logger');
+const roomService = require('../services/roomService');
+const { EVENT_TYPES, SOCKET_EVENTS } = require('../config/constants');
 
 class EventHandlers {
     constructor(io) {
         this.io = io;
-        this.rooms = new Map();
-
-        // Performance settings
-        this.MAX_STROKES_PER_ROOM = 10000; // Maximum strokes before cleanup
-        this.STROKE_CLEANUP_THRESHOLD = 0.8; // Clean up when 80% full
+        this.roomService = roomService;
 
         logger.info('EventHandlers initialized');
     }
 
     registerHandlers(socket) {
-        socket.on('join-room', (data)=> this.handleJoinRoom(socket, data));
-        socket.on('leave-room', (data)=> this.handleLeaveRoom(socket, data));
-        socket.on('drawing-event', (data)=> this.handleDrawingEvent(socket, data));
-        socket.on('disconect', ()=> this.handleDisconect(socket));
-
+        socket.on(SOCKET_EVENTS.JOIN_ROOM, (data) => this.handleJoinRoom(socket, data));
+        socket.on(SOCKET_EVENTS.LEAVE_ROOM, (data) => this.handleLeaveRoom(socket, data));
+        socket.on(SOCKET_EVENTS.DRAWING_EVENT, (data) => this.handleDrawingEvent(socket, data));
+        socket.on(SOCKET_EVENTS.DISCONNECT, () => this.handleDisconnect(socket));
+    
         logger.debug(`Handlers registered for socket ${socket.id}`);
     }
 
@@ -30,35 +28,27 @@ class EventHandlers {
         socket.userId = userId;
         socket.userName = userName;
 
-        //Initialize room if it doen't exist
-        if (!this.rooms.has(roomId)) {
-            this.rooms.set(roomId, {
-                users: new Map(),
-                strokes: [],
-                createdAt: new Date()
-            });
-            logger.info(`Room ${roomId} created`);
+        // Create room if it doesn't exist
+        if (!this.roomService.roomExists(roomId)) {
+            this.roomService.createRoom(roomId);
         }
 
-        const room = this.rooms.get(roomId);
-        room.users.set(userId, { userName, socketId: socket.id });
-
-        socket.to(roomId).emit('user-joined', {
+        // Add user to room
+        this.roomService.addUser(roomId, userId, { userName, socketId: socket.id });
+        
+        // Notify others
+        socket.to(roomId).emit(SOCKET_EVENTS.USER_JOINED, {
             userId,
             userName,
             timestamp: Date.now()
         });
-
-        // Send current room state to the new user
-        socket.emit('room-state', {
-            users: Array.from(room.users.entries()).map(([id, data]) => ({
-                userId: id,
-                userName: data.userName
-            })),
-            strokes: room.strokes
-        });
-
-        logger.info(`Room ${roomId} now has ${room.users.size} users`);
+    
+        // Send room state to new user
+        const roomState = this.roomService.getRoomStateForClient(roomId);
+        socket.emit(SOCKET_EVENTS.ROOM_STATE, roomState);
+    
+        const stats = this.roomService.getRoomStats(roomId);
+        logger.info(`Room ${roomId} now has ${stats.userCount} users, ${stats.strokeCount} strokes`);
     }
 
     handleLeaveRoom(socket) {
@@ -68,7 +58,6 @@ class EventHandlers {
 
     handleDrawingEvent(socket, event) {
         const { roomId } = socket;
-        const room = this.rooms.get(roomId);
 
         if (!roomId) {
             logger.error(`Drawing event from socket ${socket.id} not in a room`);
@@ -80,33 +69,21 @@ class EventHandlers {
             return;
         }
 
+        // Add metadata
         event.userId = socket.userId;
         event.timestamp = Date.now();
 
-        if (room) {
-            if (event.type === 'canvas-clear') {
-                room.strokes = [];
-                logger.info(`Canvas cleared by ${socket.userName} in room ${roomId}`);
-            } else {
-                room.strokes.push(event);
-
-                // Check if we need to clean up old strokes
-                if (room.strokes.length > this.MAX_STROKES_PER_ROOM * this.STROKE_CLEANUP_THRESHOLD) {
-                    logger.warn(`Room ${roomId} approaching stroke limit (${room.strokes.length}/${this.MAX_STROKES_PER_ROOM})`);
-          
-                    // If we hit the max, keep only the most recent 50%
-                    if (room.strokes.length >= this.MAX_STROKES_PER_ROOM) {
-                        const keepCount = Math.floor(this.MAX_STROKES_PER_ROOM * 0.5);
-                        room.strokes = room.strokes.slice(-keepCount);
-                        logger.info(`Room ${roomId} strokes trimmed to ${room.strokes.length}`);
-                    }
-                }
-
-                logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
-            }
+        // Handle event based on type
+        if (event.type === EVENT_TYPES.CANVAS_CLEAR) {
+            logger.info(`Canvas cleared by ${socket.userName} in room ${roomId}`);
+            this.roomService.clearStrokes(roomId);
+        } else {
+            this.roomService.addStroke(roomId, event);
+            logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
         }
 
-        socket.to(roomId).emit('drawing-event', event);
+        // Broadcast event to others
+        socket.to(roomId).emit(SOCKET_EVENTS.DRAWING_EVENT, event);
     }
 
     handleDisconnect(socket) {
@@ -118,43 +95,27 @@ class EventHandlers {
         const { roomId, userId, userName } = socket;
         
         if (!roomId) return;
+
+        // Remove user from room
+        const isEmpty = this.roomService.removeUser(roomId, userId);
+
+        // Notify others
+        socket.to(roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+            userId,
+            userName,
+            timestamp: Date.now()
+        });
     
-        const room = this.rooms.get(roomId);
-
-        if (room) {
-            room.users.delete(userId);
-
-            // Notify others
-            socket.to(roomId).emit('user-left', {
-                userId,
-                userName,
-                timestamp: Date.now()
-            });
-
-            // Clean up empty rooms
-            if (room.users.size === 0) {
-                logger.info(`Room ${roomId} is empty, cleaning up`);
-                this.rooms.delete(roomId);
-            } else {
-                logger.info(`Room ${roomId} now has ${room.users.size} users`);
-            }
+        // Delete room if empty
+        if (isEmpty) {
+            this.roomService.deleteRoom(roomId);
         }
     
         socket.leave(roomId);
     }
 
     getRoomStats(roomId) {
-        const room = this.rooms.get(roomId);
-        if (!room) {
-            logger.warn(`Room stats requested for non-existent room ${roomId}`);
-            return null;
-        }
-    
-        return {
-            userCount: room.users.size,
-            strokeCount: room.strokes.length,
-            createdAt: room.createdAt
-        };
+        return this.roomService.getRoomStats(roomId);
     }
 };
 
