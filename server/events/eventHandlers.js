@@ -14,6 +14,8 @@ class EventHandlers {
         socket.on(SOCKET_EVENTS.JOIN_ROOM, (data) => this.handleJoinRoom(socket, data));
         socket.on(SOCKET_EVENTS.LEAVE_ROOM, (data) => this.handleLeaveRoom(socket, data));
         socket.on(SOCKET_EVENTS.DRAWING_EVENT, (data) => this.handleDrawingEvent(socket, data));
+        socket.on(SOCKET_EVENTS.UNDO, () => this.handleUndo(socket));
+        socket.on(SOCKET_EVENTS.REDO, () => this.handleRedo(socket));
         socket.on(SOCKET_EVENTS.DISCONNECT, () => this.handleDisconnect(socket));
     
         logger.debug(`Handlers registered for socket ${socket.id}`);
@@ -82,8 +84,60 @@ class EventHandlers {
             logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
         }
 
+        // Broadcast history state
+        this.io.to(roomId).emit(SOCKET_EVENTS.HISTORY_UPDATE, {
+            canUndo: this.roomService.canUndo(roomId),
+            canRedo: this.roomService.canRedo(roomId)
+        });
+
         // Broadcast event to others
         socket.to(roomId).emit(SOCKET_EVENTS.DRAWING_EVENT, event);
+    }
+
+    handleUndo(socket) {
+        const { roomId, userName } = socket;
+    
+        if (!roomId) {
+            logger.error(`Undo request from socket ${socket.id} not in a room`);
+            return;
+        }
+    
+        logger.info(`Undo requested by ${userName} in room ${roomId}`);
+    
+        // Perform undo
+        const success = this.roomService.undo(roomId);
+    
+        if (success) {
+            // Broadcast new state to all users
+            const roomState = this.roomService.getRoomStateForClient(roomId);
+            this.io.to(roomId).emit(SOCKET_EVENTS.ROOM_STATE, roomState);
+      
+            const stats = this.roomService.getRoomStats(roomId);
+            logger.info(`Undo complete in room ${roomId}. Strokes: ${stats.strokeCount}, Undo: ${stats.undoStackSize}, Redo: ${stats.redoStackSize}`);
+        }
+    }
+
+    handleRedo(socket) {
+        const { roomId, userName } = socket;
+    
+        if (!roomId) {
+            logger.error(`Redo request from socket ${socket.id} not in a room`);
+            return;
+        }
+    
+        logger.info(`Redo requested by ${userName} in room ${roomId}`);
+    
+        // Perform redo
+        const success = this.roomService.redo(roomId);
+    
+        if (success) {
+            // Broadcast new state to all users
+            const roomState = this.roomService.getRoomStateForClient(roomId);
+            this.io.to(roomId).emit(SOCKET_EVENTS.ROOM_STATE, roomState);
+      
+            const stats = this.roomService.getRoomStats(roomId);
+            logger.info(`Redo complete in room ${roomId}. Strokes: ${stats.strokeCount}, Undo: ${stats.undoStackSize}, Redo: ${stats.redoStackSize}`);
+        }
     }
 
     handleDisconnect(socket) {

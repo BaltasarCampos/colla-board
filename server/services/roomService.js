@@ -22,8 +22,8 @@ class RoomService {
         this.rooms.set(roomId, {
             users: new Map(),
             strokes: [],
-    //        undoStack: [],
-    //        redoStack: [],
+            undoStack: [],
+            redoStack: [],
             createdAt: new Date()
         });
 
@@ -48,12 +48,12 @@ class RoomService {
         return this.rooms.has(roomId);
     }
 
-  /**
-   * Add user to room
-   * @param {string} roomId - Room identifier
-   * @param {string} userId - User identifier
-   * @param {Object} userData - User data
-   */
+    /**
+    * Add user to room
+    * @param {string} roomId - Room identifier
+    * @param {string} userId - User identifier
+    * @param {Object} userData - User data
+    */
     addUser(roomId, userId, userData) {
         const room = this.getRoom(roomId);
         if (!room) {
@@ -117,12 +117,12 @@ class RoomService {
         if (!room) return;
 
         // Save current state to undo stack
-    //    if (room.strokes.length > 0) {
-    //        this.addToUndoStack(roomId, [...room.strokes]);
-    //    }
+        if (room.strokes.length > 0) {
+            this.addToUndoStack(roomId, [...room.strokes]);
+        }
 
         room.strokes = [];
-    //    room.redoStack = [];
+        room.redoStack = [];
 
         logger.info(`Canvas cleared in room ${roomId}`);
     }
@@ -132,89 +132,89 @@ class RoomService {
     * @param {string} roomId - Room identifier
     * @param {Array} strokes - Array of strokes
     */
-//    addToUndoStack(roomId, strokes) {
-//        const room = this.getRoom(roomId);
-//        if (!room) return;
-//
-//        room.undoStack.push(strokes);
-//
-//        // Limit undo stack size
-//        if (room.undoStack.length > ROOM_LIMITS.MAX_UNDO_HISTORY) {
-//            room.undoStack.shift();
-//        }
-//    }
+    addToUndoStack(roomId, strokes) {
+        const room = this.getRoom(roomId);
+        if (!room) return;
+
+        room.undoStack.push(strokes);
+
+        // Limit undo stack size
+        if (room.undoStack.length > ROOM_LIMITS.MAX_UNDO_HISTORY) {
+            room.undoStack.shift();
+        }
+    }
 
     /**
     * Perform undo operation
     * @param {string} roomId - Room identifier
     * @returns {boolean} True if undo was performed
     */
-//    undo(roomId) {
-//        const room = this.getRoom(roomId);
-//        if (!room) return false;
-//
-//        // Save current state to redo stack
-//        room.redoStack.push([...room.strokes]);
-//
-//        // Restore previous state from undo stack
-//        if (room.undoStack.length > 0) {
-//            room.strokes = room.undoStack.pop();
-//        } else {
-//            room.strokes = [];
-//        }
-//
-//        // Limit redo stack size
-//        if (room.redoStack.length > ROOM_LIMITS.MAX_UNDO_HISTORY) {
-//            room.redoStack.shift();
-//        }
-//
-//        logger.info(`Undo performed in room ${roomId}`);
-//        return true;
-//    }
+    undo(roomId) {
+        const room = this.getRoom(roomId);
+        if (!room) return false;
+
+        // Save current state to redo stack
+        room.redoStack.push([...room.strokes]);
+
+        // Restore previous state from undo stack
+        if (room.undoStack.length > 0) {
+            room.strokes = room.undoStack.pop();
+        } else {
+            room.strokes = [];
+        }
+
+        // Limit redo stack size
+        if (room.redoStack.length > ROOM_LIMITS.MAX_UNDO_HISTORY) {
+            room.redoStack.shift();
+        }
+
+        logger.info(`Undo performed in room ${roomId}`);
+        return true;
+    }
 
     /**
     * Perform redo operation
     * @param {string} roomId - Room identifier
     * @returns {boolean} True if redo was performed
     */
-//    redo(roomId) {
-//        const room = this.getRoom(roomId);
-//        if (!room || room.redoStack.length === 0) return false;
-//
-//        // Save current state to undo stack
-//        room.undoStack.push([...room.strokes]);
-//
-//        // Restore state from redo stack
-//        room.strokes = room.redoStack.pop();
-//
-//        // Limit undo stack size
-//        if (room.undoStack.length > ROOM_LIMITS.MAX_UNDO_HISTORY) {
-//            room.undoStack.shift();
-//        }
-//
-//        logger.info(`Redo performed in room ${roomId}`);
-//        return true;
-//    }
+    redo(roomId) {
+        const room = this.getRoom(roomId);
+        if (!room || room.redoStack.length === 0) return false;
+
+        // Save current state to undo stack
+        room.undoStack.push([...room.strokes]);
+
+        // Restore state from redo stack
+        room.strokes = room.redoStack.pop();
+
+        // Limit undo stack size
+        if (room.undoStack.length > ROOM_LIMITS.MAX_UNDO_HISTORY) {
+            room.undoStack.shift();
+        }
+
+        logger.info(`Redo performed in room ${roomId}`);
+        return true;
+    }
 
     /**
     * Check if undo is available
     * @param {string} roomId - Room identifier
     * @returns {boolean}
     */
-//    canUndo(roomId) {
-//        const room = this.getRoom(roomId);
-//        return room ? (room.undoStack.length > 0 || room.strokes.length > 0) : false;
-//    }
-
+    canUndo(roomId) {
+        const room = this.getRoom(roomId);
+        return room ? (room.undoStack.length > 0 || room.strokes.length > 0) : false;
+    }
+    
     /**
     * Check if redo is available
     * @param {string} roomId - Room identifier
     * @returns {boolean}
     */
-//    canRedo(roomId) {
-//        const room = this.getRoom(roomId);
-//        return room ? room.redoStack.length > 0 : false;
-//    }
+    canRedo(roomId) {
+        const room = this.getRoom(roomId);
+        return room ? room.redoStack.length > 0 : false;
+    }
 
     /**
     * Clean up strokes if limit is reached
@@ -249,10 +249,10 @@ class RoomService {
         return {
             userCount: room.users.size,
             strokeCount: room.strokes.length,
-    //        undoStackSize: room.undoStack.length,
-    //        redoStackSize: room.redoStack.length,
-    //        canUndo: this.canUndo(roomId),
-    //        canRedo: this.canRedo(roomId),
+            undoStackSize: room.undoStack.length,
+            redoStackSize: room.redoStack.length,
+            canUndo: this.canUndo(roomId),
+            canRedo: this.canRedo(roomId),
             createdAt: room.createdAt
         };
     }
@@ -272,8 +272,8 @@ class RoomService {
             userName: data.userName
             })),
             strokes: room.strokes,
-    //        canUndo: this.canUndo(roomId),
-    //        canRedo: this.canRedo(roomId)
+            canUndo: this.canUndo(roomId),
+            canRedo: this.canRedo(roomId)
         };
     }
 }
