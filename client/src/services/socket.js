@@ -137,7 +137,7 @@ class SocketService {
 
   // Join a room
   joinRoom(roomId, userId, userName) {
-    console.log(`Joining room ${roomId} as ${userName}`);
+    console.log(`Joining room: ${roomId} as ${userName}`);
     this.emit('join-room', { roomId, userId, userName });
   }
 

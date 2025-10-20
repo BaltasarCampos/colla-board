@@ -1,0 +1,50 @@
+.join-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 40px;
+}
+
+.join-form h2 {
+  margin-bottom: 16px;
+  color: #282c34;
+}
+
+.join-form input {
+  width: 100%;
+  max-width: 400px;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  transition: border-color 0.3s;
+}
+
+.join-form input:focus {
+  outline: none;
+  border-color: #61dafb;
+}
+
+.join-form button {
+  padding: 12px 32px;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  background-color: #61dafb;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.join-form button:hover {
+  background-color: #4fa8c5;
+}
+
+.join-form button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}

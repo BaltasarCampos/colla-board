@@ -1,86 +1,48 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import socketService from './services/socket';
+import { useRoom } from './hooks/useRoom';
 import Canvas from './components/Canvas';
+import RoomInfo from './components/RoomInfo/RoomInfo';
+import JoinForm from './components/JoinForm/JoinForm';
 import './App.css';
 
 function App() {
-  const [isConnected, setIsConnected] = useState(false);
+  const [hasJoined, setHasJoined] = useState(false);
   const [roomId, setRoomId] = useState('');
   const [userName, setUserName] = useState('');
-  const [hasJoined, setHasJoined] = useState(false);
-  const [userId] = useState(() => uuidv4()); // Generate once on mount
-  const [users, setUsers] = useState([]);
-  const [roomState, setRoomState] = useState(null);
+  const [userId] = useState(() => uuidv4());
+  const [socketReady, setSocketReady] = useState(false);
 
-  // Connect to socket when component mounts
+  // Connect to socket on mount
   useEffect(() => {
     console.log('Connecting to Socket.io server...');
     socketService.connect();
 
-    // Listen for connection status changes
-    const handleConnectionStatus = (status) => {
-      console.log('Connection status changed:', status);
-      setIsConnected(status);
-    };
-
-    socketService.on('local:connection-status', handleConnectionStatus);
-
-    // Listen for room state
-    socketService.on('room-state', (data) => {
-      console.log('Room state received:', data);
-      setUsers(data.users);
-      setRoomState(data);
-    });
-
-    // Listen for other users joining
-    socketService.on('user-joined', (data) => {
-      console.log('User joined:', data);
-      setUsers((prevUsers) => [
-        ...prevUsers,
-        { userId: data.userId, userName: data.userName }
-      ]);
-    });
-
-    // Listen for other users leaving
-    socketService.on('user-left', (data) => {
-      console.log('User left:', data);
-      setUsers((prevUsers) =>
-        prevUsers.filter((user) => user.userId !== data.userId)
-      );
-    });
+    // Mark socket as ready after a brief delay to ensure initialization
+    const timer = setTimeout(() => {
+      setSocketReady(true);
+    }, 100);
 
     // Cleanup on unmount
     return () => {
-      socketService.off('local:connection-status', handleConnectionStatus);
+      clearTimeout(timer);
       socketService.disconnect();
     };
-  }, []); // Empty dependency array = run once on mount
+  }, []);
+
+  const { isConnected, users, roomState } = useRoom(socketReady ? socketService : null);
 
   // Handle joining a room
-  const handleJoinRoom = (e) => {
-    e.preventDefault(); // Prevent form submission from reloading page
-
-    if (!userName.trim()) {
-      alert('Please enter your name');
-      return;
-    }
-
-    if (!isConnected) {
-      alert('Not connected to server. Please wait...');
-      return;
-    }
-
-    // Generate room ID if not provided
-    const finalRoomId = roomId.trim() || `room-${Date.now()}`;
-    
-    console.log(`Joining room: ${finalRoomId}`);
+  const handleJoin = (finalRoomId, finalUserName) => {
+    console.log(`Joining room: ${finalRoomId} as ${finalUserName}`);
     
     // Join the room via socket
-    socketService.joinRoom(finalRoomId, userId, userName);
+    socketService.joinRoom(finalRoomId, userId, finalUserName);
     
     // Update UI
     setRoomId(finalRoomId);
+    setUserName(finalUserName);
     setHasJoined(true);
   };
 
@@ -94,48 +56,16 @@ function App() {
       </header>
 
       {!hasJoined ? (
-        <form className="join-form" onSubmit={handleJoinRoom}>
-          <h2>Join a Room</h2>
-          <input
-            type="text"
-            placeholder="Your Name"
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-            autoFocus
-          />
-          <input
-            type="text"
-            placeholder="Room ID (or leave empty to create new)"
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-          />
-          <button 
-            type="submit"
-            disabled={!isConnected || !userName.trim()}
-          >
-            {isConnected ? 'Join Room' : 'Connecting...'}
-          </button>
-          <p className="hint">
-            {userId && `Your ID: ${userId.substring(0, 8)}...`}
-          </p>
-        </form>
+        <JoinForm isConnected={isConnected} onJoin={handleJoin} />
       ) : (
         <div className="canvas-container">
-          <div className="room-info">
-            <p><strong>Room:</strong> {roomId}</p>
-            <p><strong>User:</strong> {userName}</p>
-          </div>
-          <div className="users-list">
-            <strong>Users ({users.length}):</strong>
-            <ul>
-              {users.map((user) => (
-                <li key={user.userId}>
-                  {user.userName}
-                  {user.userId === userId && ' (you)'}
-                </li>
-              ))}
-              </ul>
-          </div>
+          <RoomInfo
+            roomId={roomId}
+            userName={userName}
+            users={users}
+            currentUserId={userId}
+          />
+          
           <Canvas
             socketService={socketService}
             roomId={roomId}
