@@ -12,14 +12,19 @@ class DrawingEngine {
    * @param {Array} strokes - Array of stroke events
    */
   replayStrokes(ctx, canvas, strokes) {
-    if (!ctx || !strokes || strokes.length === 0) {
+    // Always check ctx and canvas first
+    if (!ctx || !canvas) {
       return;
     }
 
-    console.log(`Replaying ${strokes.length} strokes`);
-
-    // Clear canvas first
+    // ALWAYS clear canvas, regardless of stroke count
     canvasService.clearCanvas(ctx, canvas);
+
+    // NOW check if strokes is empty
+      if (!strokes || strokes.length === 0) {
+        console.log('Replay complete (empty canvas)');
+        return;
+      }
 
     // Batch rendering for performance
     let currentIndex = 0;

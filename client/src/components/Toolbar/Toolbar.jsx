@@ -8,10 +8,33 @@ function Toolbar({
   setCurrentColor,
   brushSize,
   setBrushSize,
-  onClearCanvas
+  onClearCanvas,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo
 }) {
   return (
     <div className="toolbar">
+      <div className="tool-group">
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          className="history-button"
+        >
+          ↶ Undo
+        </button>
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+          className="history-button"
+        >
+          ↷ Redo
+        </button>
+      </div>
+      
       <div className="tool-group">
         <label>Tool:</label>
         <button

@@ -1,3 +1,10 @@
+// Connection settings
+export const CONNECTION = {
+  RECONNECTION: true,
+  RECONNECTION_DELAY: 1000,
+  RECONNECTION_ATTEMPTS: 5
+};
+
 // Canvas settings
 export const CANVAS_MARGIN = 100;
 export const CANVAS_HEIGHT_OFFSET = 200;

@@ -53,13 +53,13 @@ class EventHandlers {
         logger.info(`Room ${roomId} now has ${stats.userCount} users, ${stats.strokeCount} strokes`);
     }
 
-    handleLeaveRoom(socket) {
+    handleLeaveRoom(socket, { roomId }) {
         logger.info(`User ${socket.userName} leaving room ${roomId}`);
         this.leaveRoom(socket);
     }
 
     handleDrawingEvent(socket, event) {
-        const { roomId } = socket;
+        const { roomId, userId } = socket;
 
         if (!roomId) {
             logger.error(`Drawing event from socket ${socket.id} not in a room`);
@@ -72,26 +72,25 @@ class EventHandlers {
         }
 
         // Add metadata
-        event.userId = socket.userId;
+        event.userId = userId;
         event.timestamp = Date.now();
 
         // Handle event based on type
         if (event.type === EVENT_TYPES.CANVAS_CLEAR) {
             logger.info(`Canvas cleared by ${socket.userName} in room ${roomId}`);
-            this.roomService.clearStrokes(roomId);
+            this.roomService.clearStrokes(roomId, userId);
         } else {
             this.roomService.addStroke(roomId, event);
-            logger.debug(`Drawing event ${event.type} from ${socket.userName} in room ${roomId}`);
         }
 
-        // Broadcast history state
+        // Broadcast to others in room (not to sender)
+        socket.to(roomId).emit(SOCKET_EVENTS.DRAWING_EVENT, event);
+
+        // Broadcast history state to ALL users (including sender)
         this.io.to(roomId).emit(SOCKET_EVENTS.HISTORY_UPDATE, {
             canUndo: this.roomService.canUndo(roomId),
             canRedo: this.roomService.canRedo(roomId)
         });
-
-        // Broadcast event to others
-        socket.to(roomId).emit(SOCKET_EVENTS.DRAWING_EVENT, event);
     }
 
     handleUndo(socket) {
@@ -108,12 +107,14 @@ class EventHandlers {
         const success = this.roomService.undo(roomId);
     
         if (success) {
-            // Broadcast new state to all users
+            // Broadcast new state to all users in room
             const roomState = this.roomService.getRoomStateForClient(roomId);
             this.io.to(roomId).emit(SOCKET_EVENTS.ROOM_STATE, roomState);
       
             const stats = this.roomService.getRoomStats(roomId);
             logger.info(`Undo complete in room ${roomId}. Strokes: ${stats.strokeCount}, Undo: ${stats.undoStackSize}, Redo: ${stats.redoStackSize}`);
+        } else {
+            logger.warn(`Undo failed in room ${roomId}`);
         }
     }
 
@@ -131,12 +132,14 @@ class EventHandlers {
         const success = this.roomService.redo(roomId);
     
         if (success) {
-            // Broadcast new state to all users
+            // Broadcast new state to all users in room
             const roomState = this.roomService.getRoomStateForClient(roomId);
             this.io.to(roomId).emit(SOCKET_EVENTS.ROOM_STATE, roomState);
       
             const stats = this.roomService.getRoomStats(roomId);
             logger.info(`Redo complete in room ${roomId}. Strokes: ${stats.strokeCount}, Undo: ${stats.undoStackSize}, Redo: ${stats.redoStackSize}`);
+        } else {
+            logger.warn(`Redo failed in room ${roomId}`);
         }
     }
 
@@ -171,6 +174,6 @@ class EventHandlers {
     getRoomStats(roomId) {
         return this.roomService.getRoomStats(roomId);
     }
-};
+}
 
 module.exports = EventHandlers;

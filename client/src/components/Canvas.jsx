@@ -1,7 +1,8 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { useCanvas } from "../hooks/useCanvas";
 import { useDrawing } from "../hooks/useDrawing";
 import { useSocketEvents } from "../hooks/useSocketEvents";
+import { useUndoRedo } from "../hooks/useUndoRedo";
 import drawingEngine from "../services/drawingEngine";
 import Toolbar from "./Toolbar/Toolbar";
 import './Canvas.css';
@@ -14,6 +15,20 @@ function Canvas ({ socketService, roomId, userId, userName, initialRoomState }) 
   const handleDrawingEvent = (event) => {
     socketService.sendDrawingEvent(event);
   };
+
+  // Handle room state updates (for undo/redo)
+  const handleRoomStateReceived = useCallback((data) => {
+    if (!context || !canvasRef.current) return;
+    
+    console.log('Room state received, replaying strokes:', data.strokes.length);
+    
+    // Replay the strokes from the room state
+    drawingEngine.replayStrokes(
+      context,
+      canvasRef.current,
+      data.strokes
+    );
+  }, [context]);
 
   // Drawing operations
   const {
@@ -29,8 +44,11 @@ function Canvas ({ socketService, roomId, userId, userName, initialRoomState }) 
     clearCanvas
   } = useDrawing(context, canvasRef, handleDrawingEvent);
 
+  // Undo/Redo functionality
+  const { canUndo, canRedo, undo, redo } = useUndoRedo(socketService);
+
   // Socket event handlers
-  useSocketEvents(socketService, context, canvasRef, userId);
+  useSocketEvents(socketService, context, canvasRef, userId, handleRoomStateReceived);
 
   // Replay initial room state when context is ready
   useEffect(() => {
@@ -53,6 +71,10 @@ function Canvas ({ socketService, roomId, userId, userName, initialRoomState }) 
         brushSize={brushSize}
         setBrushSize={setBrushSize}
         onClearCanvas={clearCanvas}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
       />
       {isLoading && (
         <div className="canvas-loading">Initializing canvas...</div>

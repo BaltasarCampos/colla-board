@@ -32,7 +32,7 @@
   transition: all 0.2s;
 }
 
-.toolbar button:hover {
+.toolbar button:hover:not(:disabled) {
   border-color: #61dafb;
   background-color: #f0f9ff;
 }
@@ -41,6 +41,18 @@
   border-color: #61dafb;
   background-color: #61dafb;
   color: white;
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: #ddd;
+  background-color: #f5f5f5;
+}
+
+.history-button {
+  font-size: 16px;
+  min-width: 80px;
 }
 
 .toolbar input[type="color"] {

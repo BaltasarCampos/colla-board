@@ -1,4 +1,5 @@
 import io from 'socket.io-client';
+import { CONNECTION } from '../utils/constants';
 
 const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
 
@@ -27,9 +28,9 @@ class SocketService {
     
     this.socket = io(SERVER_URL, {
       transports: ['websocket'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnection: CONNECTION.RECONNECTION,
+      reconnectionDelay: CONNECTION.RECONNECTION_DELAY,
+      reconnectionAttempts: CONNECTION.RECONNECTION_ATTEMPTS
     });
 
     // Set up default event handlers
@@ -150,6 +151,17 @@ class SocketService {
   // Send a drawing event
   sendDrawingEvent(event) {
     this.emit('drawing-event', event);
+  }
+
+  // Undo/Redo methods
+  undo() {
+    console.log('Sending undo request');
+    this.emit('undo');
+  }
+
+  redo() {
+    console.log('Sending redo request');
+    this.emit('redo');
   }
 
   // Get connection status
