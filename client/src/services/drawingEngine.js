@@ -14,17 +14,20 @@ class DrawingEngine {
   replayStrokes(ctx, canvas, strokes) {
     // Always check ctx and canvas first
     if (!ctx || !canvas) {
+      console.error('Canvas context or element not available');
       return;
     }
 
-    // ALWAYS clear canvas, regardless of stroke count
+    console.log(`Replaying ${strokes ? strokes.length : 0} strokes`);
+
+    // ALWAYS clear canvas first, even if strokes is empty
     canvasService.clearCanvas(ctx, canvas);
 
-    // NOW check if strokes is empty
-      if (!strokes || strokes.length === 0) {
-        console.log('Replay complete (empty canvas)');
-        return;
-      }
+    // If no strokes to replay, we're done (canvas is now clear)
+    if (!strokes || strokes.length === 0) {
+      console.log('Replay complete (empty canvas)');
+      return;
+    }
 
     // Batch rendering for performance
     let currentIndex = 0;
@@ -60,22 +63,31 @@ class DrawingEngine {
    * @param {Object} event - Stroke event
    */
   renderStrokeEvent(ctx, event) {
+    if (!event || !event.type) {
+      console.warn('Invalid stroke event:', event);
+      return;
+    }
+
     const { type, data } = event;
 
     switch (type) {
       case EVENT_TYPES.STROKE_START:
-        canvasService.beginPath(ctx, data.x, data.y);
+        if (data && typeof data.x === 'number' && typeof data.y === 'number') {
+          canvasService.beginPath(ctx, data.x, data.y);
+        }
         break;
 
       case EVENT_TYPES.STROKE_CONTINUE:
-        canvasService.drawLine(
-          ctx,
-          data.x,
-          data.y,
-          data.color,
-          data.size,
-          data.tool
-        );
+        if (data && typeof data.x === 'number' && typeof data.y === 'number') {
+          canvasService.drawLine(
+            ctx,
+            data.x,
+            data.y,
+            data.color,
+            data.size,
+            data.tool
+          );
+        }
         break;
 
       case EVENT_TYPES.STROKE_END:

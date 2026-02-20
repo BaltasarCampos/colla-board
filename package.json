@@ -6,7 +6,14 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest server",
+    "test:watch": "jest --watch server",
+    "test:coverage": "jest --coverage server",
+    "test:unit": "jest server/__tests__/unit",
+    "test:integration": "jest server/__tests__/integration",
+    "test:client": "cd client && npm test -- --no-coverage --watchAll=false",
+    "test:client:watch": "cd client && npm test",
+    "test:all": "npm run test && npm run test:client"
   },
   "keywords": [],
   "author": "Baltasar Campos Ballesteros",
@@ -20,6 +27,9 @@
     "winston": "^3.18.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.10",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.2.2"
   }
 }
