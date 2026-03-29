@@ -1,4 +1,5 @@
 import { EVENT_TYPES, STROKE_REPLAY_BATCH_SIZE } from '../utils/constants';
+import canvasService from './canvasService';
 
 /**
  * Generate a UUID v4 string.
@@ -16,7 +17,6 @@ function generateUUID() {
     return v.toString(16);
   });
 }
-import canvasService from './canvasService';
 
 /**
  * Core drawing engine for handling stroke replay and rendering
