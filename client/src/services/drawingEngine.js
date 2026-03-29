@@ -1,4 +1,21 @@
 import { EVENT_TYPES, STROKE_REPLAY_BATCH_SIZE } from '../utils/constants';
+
+/**
+ * Generate a UUID v4 string.
+ * Uses crypto.randomUUID() when available (Chrome 92+/Firefox 95+/Safari 15.4+),
+ * and falls back to a Math.random()-based implementation for jsdom test environments.
+ */
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // RFC 4122 v4 fallback
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 import canvasService from './canvasService';
 
 /**
@@ -108,7 +125,8 @@ class DrawingEngine {
   createDrawingEvent(type, data = {}) {
     return {
       type,
-      data
+      data,
+      operationId: generateUUID()
     };
   }
 }

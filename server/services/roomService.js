@@ -25,6 +25,7 @@ class RoomService {
       currentStrokes: new Map(), // userId -> currentStroke (for tracking incomplete strokes)
       undoStack: [], // Stack of actions that can be undone
       redoStack: [], // Stack of actions that can be redone
+      seenOperationIds: new Set(), // Bounded FIFO dedup seen-set (Principle IV)
       createdAt: new Date()
     });
 
@@ -369,6 +370,34 @@ class RoomService {
       canRedo: this.canRedo(roomId),
       createdAt: room.createdAt
     };
+  }
+
+  /**
+   * Check if an operationId has already been processed in this room
+   * @param {string} roomId
+   * @param {string} operationId
+   * @returns {boolean}
+   */
+  isDuplicateOperation(roomId, operationId) {
+    const room = this.getRoom(roomId);
+    if (!room) return false;
+    return room.seenOperationIds.has(operationId);
+  }
+
+  /**
+   * Record an operationId as processed, evicting the oldest entry if the
+   * seen-set has reached MAX_OPERATION_IDS (FIFO, Principle IV)
+   * @param {string} roomId
+   * @param {string} operationId
+   */
+  recordOperation(roomId, operationId) {
+    const room = this.getRoom(roomId);
+    if (!room) return;
+    if (room.seenOperationIds.size >= ROOM_LIMITS.MAX_OPERATION_IDS) {
+      // Evict oldest-inserted entry (Set is insertion-ordered)
+      room.seenOperationIds.delete(room.seenOperationIds.values().next().value);
+    }
+    room.seenOperationIds.add(operationId);
   }
 
   /**

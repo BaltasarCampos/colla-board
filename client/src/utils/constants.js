@@ -50,6 +50,9 @@ export const SERVER_EVENTS = {
   HISTORY_UPDATE: 'history-update'
 };
 
+// Schema field names (shared with server — Principle VI)
+export const OPERATION_ID_FIELD = 'operationId';
+
 // Keyboard shortcuts
 export const SHORTCUTS = {
   UNDO: { key: 'z', ctrl: true, shift: false },
