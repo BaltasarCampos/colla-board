@@ -2,13 +2,5 @@
 .env.*
 logs/
 *.log
-/node_modules
-dist/
-build/
-coverage/
-.DS_Store
-Thumbs.db
-*.tmp
-*.swp
-.idea/
+node_modules/
 .github/
