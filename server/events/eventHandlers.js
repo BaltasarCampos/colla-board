@@ -60,6 +60,7 @@ class EventHandlers {
 
     handleDrawingEvent(socket, event) {
         const { roomId, userId } = socket;
+        const handlerStart = Date.now();
 
         if (!roomId) {
             logger.error(`Drawing event from socket ${socket.id} not in a room`);
@@ -70,6 +71,31 @@ class EventHandlers {
             logger.error(`Invalid drawing event structure from ${socket.id}`);
             return;
         }
+
+        // Validate operationId presence (FR-003, Principle VII)
+        if (!event.operationId || typeof event.operationId !== 'string') {
+            logger.error(`Drawing event missing operationId`, {
+                roomId,
+                userId,
+                event: event.type
+            });
+            return;
+        }
+
+        // Deduplicate by operationId (FR-005, FR-006, Principle IV)
+        if (this.roomService.isDuplicateOperation(roomId, event.operationId)) {
+            logger.warn(`Duplicate operationId discarded`, {
+                roomId,
+                userId,
+                operationId: event.operationId,
+                event: event.type,
+                durationMs: Date.now() - handlerStart
+            });
+            return;
+        }
+
+        // Record operationId in seen-set before processing (FR-007, Principle IV)
+        this.roomService.recordOperation(roomId, event.operationId);
 
         // Add metadata
         event.userId = userId;

@@ -1,5 +1,5 @@
 const roomService = require('../../services/roomService');
-const { EVENT_TYPES } = require('../../config/constants');
+const { EVENT_TYPES, ROOM_LIMITS } = require('../../config/constants');
 
 describe('RoomService', () => {
   const testRoomId = 'test-room-123';
@@ -361,6 +361,70 @@ describe('RoomService', () => {
     test('should return null for non-existent room', () => {
       const state = roomService.getRoomStateForClient('non-existent');
       expect(state).toBeNull();
+    });
+  });
+
+  // T005 — OperationId Deduplication tests (MUST FAIL before T008-T010 — Principle I)
+  describe('OperationId Deduplication', () => {
+    beforeEach(() => {
+      roomService.createRoom(testRoomId);
+    });
+
+    test('createRoom initialises seenOperationIds as an empty Set', () => {
+      const room = roomService.getRoom(testRoomId);
+      expect(room.seenOperationIds).toBeDefined();
+      expect(room.seenOperationIds).toBeInstanceOf(Set);
+      expect(room.seenOperationIds.size).toBe(0);
+    });
+
+    test('isDuplicateOperation returns false for a new operationId', () => {
+      const result = roomService.isDuplicateOperation(testRoomId, 'op-id-001');
+      expect(result).toBe(false);
+    });
+
+    test('isDuplicateOperation returns true after recordOperation records the same id', () => {
+      roomService.recordOperation(testRoomId, 'op-id-001');
+      const result = roomService.isDuplicateOperation(testRoomId, 'op-id-001');
+      expect(result).toBe(true);
+    });
+
+    test('recordOperation grows the seen-set by one per unique id', () => {
+      const room = roomService.getRoom(testRoomId);
+      roomService.recordOperation(testRoomId, 'op-id-001');
+      expect(room.seenOperationIds.size).toBe(1);
+      roomService.recordOperation(testRoomId, 'op-id-002');
+      expect(room.seenOperationIds.size).toBe(2);
+    });
+
+    test('different rooms do not share seenOperationIds (scoped per room)', () => {
+      const otherRoomId = 'other-room-456';
+      roomService.createRoom(otherRoomId);
+      roomService.recordOperation(testRoomId, 'op-id-001');
+
+      expect(roomService.isDuplicateOperation(testRoomId, 'op-id-001')).toBe(true);
+      expect(roomService.isDuplicateOperation(otherRoomId, 'op-id-001')).toBe(false);
+
+      roomService.deleteRoom(otherRoomId);
+    });
+
+    test('FIFO eviction: size never exceeds MAX_OPERATION_IDS', () => {
+      const limit = ROOM_LIMITS.MAX_OPERATION_IDS;
+
+      for (let i = 0; i < limit; i++) {
+        roomService.recordOperation(testRoomId, `op-${i}`);
+      }
+
+      const room = roomService.getRoom(testRoomId);
+      expect(room.seenOperationIds.size).toBe(limit);
+
+      // Record one more — oldest should be evicted
+      roomService.recordOperation(testRoomId, 'op-overflow');
+      expect(room.seenOperationIds.size).toBe(limit);
+
+      // Oldest entry (op-0) should have been evicted
+      expect(roomService.isDuplicateOperation(testRoomId, 'op-0')).toBe(false);
+      // Newest entry should be present
+      expect(roomService.isDuplicateOperation(testRoomId, 'op-overflow')).toBe(true);
     });
   });
 });

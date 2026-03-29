@@ -1,8 +1,10 @@
 const EventHandlers = require('../../events/eventHandlers');
 const roomService = require('../../services/roomService');
+const logger = require('../../utils/logger');
 const { EVENT_TYPES, SOCKET_EVENTS } = require('../../config/constants');
 
 jest.mock('../../services/roomService');
+jest.mock('../../utils/logger');
 
 describe('EventHandlers', () => {
   let eventHandlers;
@@ -64,6 +66,9 @@ describe('EventHandlers', () => {
     roomService.redo.mockReturnValue(true);
     roomService.removeUser.mockReturnValue(false);
     roomService.deleteRoom.mockImplementation();
+    // Dedup mocks (default: not a duplicate, record is no-op)
+    roomService.isDuplicateOperation.mockReturnValue(false);
+    roomService.recordOperation.mockImplementation();
   });
 
   describe('Handler Registration', () => {
@@ -195,6 +200,7 @@ describe('EventHandlers', () => {
     test('should handle drawing event', () => {
       const event = {
         type: EVENT_TYPES.STROKE_START,
+        operationId: 'op-fresh-001',
         data: { x: 10, y: 20 },
       };
 
@@ -211,6 +217,7 @@ describe('EventHandlers', () => {
     test('should broadcast drawing event to other users', () => {
       const event = {
         type: EVENT_TYPES.STROKE_CONTINUE,
+        operationId: 'op-fresh-002',
         data: { x: 10, y: 20 },
       };
 
@@ -223,6 +230,7 @@ describe('EventHandlers', () => {
     test('should update history state after drawing', () => {
       const event = {
         type: EVENT_TYPES.STROKE_START,
+        operationId: 'op-fresh-003',
         data: { x: 10, y: 20 },
       };
 
@@ -238,6 +246,7 @@ describe('EventHandlers', () => {
     test('should handle canvas clear event', () => {
       const event = {
         type: EVENT_TYPES.CANVAS_CLEAR,
+        operationId: 'op-fresh-004',
       };
 
       const drawHandler = eventHandlers.handleDrawingEvent.bind(eventHandlers);
@@ -251,6 +260,7 @@ describe('EventHandlers', () => {
 
       const event = {
         type: EVENT_TYPES.STROKE_START,
+        operationId: 'op-fresh-005',
         data: { x: 10, y: 20 },
       };
 
@@ -376,6 +386,58 @@ describe('EventHandlers', () => {
 
       expect(stats).toEqual(mockStats);
       expect(roomService.getRoomStats).toHaveBeenCalledWith('room-123');
+    });
+  });
+
+  // T006 — OperationId dedup-guard tests (MUST FAIL before T011 — Principle I)
+  describe('OperationId Deduplication Guard', () => {
+    beforeEach(() => {
+      mockSocket.roomId = 'room-123';
+      mockSocket.userId = 'user-123';
+    });
+
+    test('fresh operationId: addStroke called once, event broadcast once', () => {
+      roomService.isDuplicateOperation.mockReturnValue(false);
+
+      const event = { type: EVENT_TYPES.STROKE_START, operationId: 'op-new-001', data: { x: 1, y: 1 } };
+      eventHandlers.handleDrawingEvent(mockSocket, event);
+
+      expect(roomService.recordOperation).toHaveBeenCalledWith('room-123', 'op-new-001');
+      expect(roomService.addStroke).toHaveBeenCalledTimes(1);
+      expect(mockSocket._toEmit).toHaveBeenCalledTimes(1);
+    });
+
+    test('duplicate operationId: addStroke NOT called, no broadcast, logger.warn called', () => {
+      roomService.isDuplicateOperation.mockReturnValue(true);
+
+      const event = { type: EVENT_TYPES.STROKE_CONTINUE, operationId: 'op-dup-001', data: { x: 2, y: 2 } };
+      eventHandlers.handleDrawingEvent(mockSocket, event);
+
+      expect(roomService.addStroke).not.toHaveBeenCalled();
+      expect(mockSocket._toEmit).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate'),
+        expect.objectContaining({ roomId: 'room-123', userId: 'user-123', operationId: 'op-dup-001' })
+      );
+    });
+
+    test('missing operationId: addStroke NOT called, logger.error called', () => {
+      const event = { type: EVENT_TYPES.STROKE_START, data: { x: 3, y: 3 } }; // no operationId
+      eventHandlers.handleDrawingEvent(mockSocket, event);
+
+      expect(roomService.addStroke).not.toHaveBeenCalled();
+      expect(mockSocket._toEmit).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    test('duplicate CANVAS_CLEAR: clearStrokes NOT called, logger.warn called once', () => {
+      roomService.isDuplicateOperation.mockReturnValue(true);
+
+      const event = { type: EVENT_TYPES.CANVAS_CLEAR, operationId: 'op-dup-clear' };
+      eventHandlers.handleDrawingEvent(mockSocket, event);
+
+      expect(roomService.clearStrokes).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -1,4 +1,5 @@
 const roomService = require('../../services/roomService');
+const EventHandlers = require('../../events/eventHandlers');
 const { EVENT_TYPES } = require('../../config/constants');
 
 describe('Socket Integration Tests', () => {
@@ -113,5 +114,65 @@ describe('Socket Integration Tests', () => {
     expect(state.users).toBeDefined();
     expect(state.strokes).toBeDefined();
     expect(state.strokes.length).toBe(1);
+  });
+
+  // T007 — Deduplication integration test (MUST FAIL before T011 — Principle I)
+  describe('OperationId Deduplication (integration)', () => {
+    let eventHandlers;
+    let mockIoEmit;
+    let mockSocket;
+
+    beforeEach(() => {
+      roomService.createRoom(testRoomId);
+      roomService.addUser(testRoomId, 'user1', { userName: 'Alice', socketId: 's1' });
+
+      mockIoEmit = jest.fn();
+      const mockIo = { to: jest.fn(() => ({ emit: mockIoEmit })) };
+      eventHandlers = new EventHandlers(mockIo);
+
+      const mockToEmit = jest.fn();
+      mockSocket = {
+        id: 's1',
+        roomId: testRoomId,
+        userId: 'user1',
+        userName: 'Alice',
+        join: jest.fn(),
+        leave: jest.fn(),
+        emit: jest.fn(),
+        on: jest.fn(),
+        to: jest.fn(() => ({ emit: mockToEmit })),
+        _toEmit: mockToEmit,
+      };
+    });
+
+    test('emitting same drawing-event twice results in addStroke called once', () => {
+      const event = {
+        type: EVENT_TYPES.STROKE_START,
+        operationId: 'int-op-dup-001',
+        data: { x: 5, y: 5, color: '#000', size: 3, tool: 'pen' },
+      };
+
+      // First emission
+      eventHandlers.handleDrawingEvent(mockSocket, { ...event });
+      // Second emission — same operationId
+      eventHandlers.handleDrawingEvent(mockSocket, { ...event });
+
+      const room = roomService.getRoom(testRoomId);
+      expect(room.strokes).toHaveLength(1);
+    });
+
+    test('emitting same drawing-event twice results in broadcast emitted exactly once', () => {
+      const event = {
+        type: EVENT_TYPES.STROKE_CONTINUE,
+        operationId: 'int-op-dup-002',
+        data: { x: 10, y: 10, color: '#000', size: 3, tool: 'pen' },
+      };
+
+      eventHandlers.handleDrawingEvent(mockSocket, { ...event });
+      eventHandlers.handleDrawingEvent(mockSocket, { ...event });
+
+      // Only one socket.to(roomId).emit(drawing-event) should have occurred
+      expect(mockSocket._toEmit).toHaveBeenCalledTimes(1);
+    });
   });
 });

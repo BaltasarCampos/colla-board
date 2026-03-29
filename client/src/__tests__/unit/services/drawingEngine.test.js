@@ -1,6 +1,6 @@
 import drawingEngine from '../../../services/drawingEngine';
 import canvasService from '../../../services/canvasService';
-import { EVENT_TYPES } from '../../../utils/constants';
+import { EVENT_TYPES, OPERATION_ID_FIELD } from '../../../utils/constants';
 
 // Mock canvasService
 jest.mock('../../../services/canvasService');
@@ -44,7 +44,7 @@ describe('DrawingEngine', () => {
         color: '#000',
       });
 
-      expect(event).toEqual({
+      expect(event).toMatchObject({
         type: EVENT_TYPES.STROKE_START,
         data: { x: 10, y: 20, color: '#000' },
       });
@@ -53,10 +53,49 @@ describe('DrawingEngine', () => {
     test('should create event with empty data if not provided', () => {
       const event = drawingEngine.createDrawingEvent(EVENT_TYPES.STROKE_END);
 
-      expect(event).toEqual({
+      expect(event).toMatchObject({
         type: EVENT_TYPES.STROKE_END,
         data: {},
       });
+    });
+
+    // T003 — operationId tests (MUST FAIL before T004 implementation — Principle I)
+    const UUID_V4_REGEX =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    test('should include a valid UUID v4 operationId field', () => {
+      const event = drawingEngine.createDrawingEvent(EVENT_TYPES.STROKE_START, {
+        x: 10,
+        y: 20,
+        color: '#000',
+      });
+
+      expect(event[OPERATION_ID_FIELD]).toBeDefined();
+      expect(event[OPERATION_ID_FIELD]).toMatch(UUID_V4_REGEX);
+    });
+
+    test('should produce distinct operationId on each call', () => {
+      const event1 = drawingEngine.createDrawingEvent(EVENT_TYPES.STROKE_START, { x: 0, y: 0 });
+      const event2 = drawingEngine.createDrawingEvent(EVENT_TYPES.STROKE_CONTINUE, { x: 1, y: 1 });
+
+      expect(event1[OPERATION_ID_FIELD]).not.toBe(event2[OPERATION_ID_FIELD]);
+    });
+
+    test('should preserve the original operationId on retransmission (same object)', () => {
+      const event = drawingEngine.createDrawingEvent(EVENT_TYPES.STROKE_CONTINUE, { x: 5, y: 5 });
+      const originalId = event[OPERATION_ID_FIELD];
+
+      // Simulate retransmission — same object reference, no new ID generated
+      const retransmittedId = event[OPERATION_ID_FIELD];
+
+      expect(retransmittedId).toBe(originalId);
+    });
+
+    test('CANVAS_CLEAR event also carries a valid operationId', () => {
+      const event = drawingEngine.createDrawingEvent(EVENT_TYPES.CANVAS_CLEAR);
+
+      expect(event[OPERATION_ID_FIELD]).toBeDefined();
+      expect(event[OPERATION_ID_FIELD]).toMatch(UUID_V4_REGEX);
     });
   });
 
